@@ -1,4 +1,22 @@
 const CATALOG_URL = "https://www.marukyu-koyamaen.co.jp/english/shop/products/catalog/matcha";
+const KANJI_NAMES = {
+  Tenju: "天授",
+  "Kiwami Choan": "極長安",
+  Unkaku: "雲鶴",
+  Wako: "和光",
+  Choan: "長安",
+  Eiju: "栄寿",
+  Kinrin: "金輪",
+  Yugen: "又玄",
+  "Chigi no Shiro": "千木の白",
+  Isuzu: "五十鈴",
+  Aoarashi: "青嵐",
+};
+
+function displayName(name) {
+  const clean = String(name || "").trim();
+  return KANJI_NAMES[clean] ? `${KANJI_NAMES[clean]} ${clean}` : clean;
+}
 
 function parseCatalogLinks() {
   const anchors = Array.from(document.querySelectorAll("a[href]"));
@@ -64,6 +82,7 @@ function parseCurrentProductPage(input) {
 
   return {
     name: input.name,
+    displayName: displayName(input.name),
     url: input.url,
     status,
     variants,
@@ -104,6 +123,7 @@ export async function runLoggedInStockCheck({ browser, nodeRepl, tab: providedTa
 
   const compact = results.map((result) => ({
     name: result.name,
+    displayName: result.displayName || displayName(result.name),
     status: result.status,
     availableVariants: result.variants
       .filter((variant) => variant.status === "available")

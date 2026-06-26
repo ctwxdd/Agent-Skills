@@ -33,6 +33,7 @@ Use `scripts/iab_logged_in_stock_check.mjs` after selecting the browser that con
 
 Interpret JSON:
 
+- Prefer `displayName` in user-facing output; it includes kanji when known, e.g. `又玄 Yugen`.
 - `availableVariants`: size section contains `Add To Cart`.
 - `outOfStockVariants`: size section contains `Out of stock`.
 - Each size is parsed only until the next size label; never use page-level `Out of stock` on mixed pages.

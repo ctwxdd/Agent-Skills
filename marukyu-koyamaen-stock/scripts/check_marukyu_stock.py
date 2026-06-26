@@ -40,6 +40,25 @@ LOGIN_REQUIRED_PATTERNS = [
 ]
 PRICE_RE = re.compile(r"(?:JPY|¥|&yen;)\s*[0-9][0-9,]*|[0-9][0-9,]*\s*yen", re.I)
 SKU_RE = re.compile(r"\b(?:SKU|Item\s*No\.?|Product\s*No\.?)\s*[:#]?\s*([A-Z0-9][A-Z0-9._-]{2,})\b", re.I)
+KANJI_NAMES = {
+    "Tenju": "天授",
+    "Kiwami Choan": "極長安",
+    "Unkaku": "雲鶴",
+    "Wako": "和光",
+    "Choan": "長安",
+    "Eiju": "栄寿",
+    "Kinrin": "金輪",
+    "Yugen": "又玄",
+    "Chigi no Shiro": "千木の白",
+    "Isuzu": "五十鈴",
+    "Aoarashi": "青嵐",
+}
+
+
+def display_name(name: str) -> str:
+    clean = name.strip()
+    kanji = KANJI_NAMES.get(clean)
+    return f"{kanji} {clean}" if kanji else clean
 
 
 class LinkAndTextParser(HTMLParser):
@@ -195,6 +214,7 @@ def summarize_product(url: str, html_text: str) -> dict:
     title = re.sub(r"\s*\|\s*.*$", "", parser.title).strip()
     return {
         "title": title,
+        "display_title": display_name(title),
         "url": url,
         "status": status,
         "prices": prices,
@@ -251,7 +271,7 @@ def markdown(result: dict, only_changes: bool) -> str:
         lines.extend(
             [
                 "",
-                f"## {product['title']}",
+                f"## {product.get('display_title') or display_name(product['title'])}",
                 f"- Status: `{product['status']}`{changed}",
                 f"- Prices: {prices}",
                 f"- URL: {product['url']}",
