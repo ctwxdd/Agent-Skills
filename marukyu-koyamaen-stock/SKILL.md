@@ -11,6 +11,7 @@ description: Check Marukyu Koyamaen official English shop inventory for matcha p
 python3 scripts/check_marukyu_stock.py
 python3 scripts/check_marukyu_stock.py --format json
 python3 scripts/check_marukyu_stock.py --state /tmp/marukyu-stock-state.json --only-changes
+python3 scripts/append_stock_xlsx.py --input outputs/marukyu-stock/latest-stock.json
 ```
 
 Logged-in browser fast path:
@@ -42,6 +43,7 @@ Interpret JSON:
 
 - `check_marukyu_stock.py`: stdlib HTTP checker, Markdown/JSON output, optional state diff, Cloudflare detection.
 - `iab_logged_in_stock_check.mjs`: logged-in browser checker. It navigates pages because the in-app browser page scope may not expose `fetch`.
+- `append_stock_xlsx.py`: append stock-check JSON to `outputs/marukyu-stock/stock-log.jsonl` and rebuild `outputs/marukyu-stock/marukyu-stock-log.xlsx`.
 
 Treat `available_candidate` as "listed/orderable-looking", not checkout-proof, unless a logged-in product page exposes `Add To Cart`.
 
