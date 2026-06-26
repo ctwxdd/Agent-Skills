@@ -1,0 +1,4 @@
+interface:
+  display_name: "Marukyu Koyamaen Stock"
+  short_description: "Check Marukyu Koyamaen matcha inventory."
+  default_prompt: "Use $marukyu-koyamaen-stock to check Marukyu Koyamaen English matcha product stock and summarize available items."
