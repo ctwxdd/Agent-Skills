@@ -75,7 +75,9 @@ function parseProduct(input, html, statusCode, observedUrl) {
   const title = pageTitle(html);
   const body = htmlToText(html);
 
-  if (/just a moment/i.test(title) || /cloudflare|challenge-platform|__cf_chl_|verify you are human/i.test(html)) {
+  const cloudflareChallenge = (/just a moment/i.test(title) && /cloudflare/i.test(html))
+    || /challenge-platform|__cf_chl_|verify you are human|cf-browser-verification|cf-challenge/i.test(html);
+  if (cloudflareChallenge) {
     return {
       name: input.name,
       displayName: input.displayName,
