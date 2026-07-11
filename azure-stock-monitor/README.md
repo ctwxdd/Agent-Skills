@@ -1,6 +1,6 @@
 # Marukyu Stock Monitor on Azure
 
-Container Apps Job that checks 又玄 Yugen, 五十鈴 Isuzu, and 青嵐 Aoarashi hourly with Node `fetch`. The job runs every UTC hour, then the script skips unless the current time in Japan is 08:00-20:59.
+Container Apps Job that checks 又玄 Yugen, 五十鈴 Isuzu, and 青嵐 Aoarashi hourly with headless Playwright. The job runs every UTC hour, then the script skips unless the current time in Japan is 08:00-20:59.
 
 Secrets are injected as Azure Container Apps secrets. Do not commit credentials.
 

@@ -9,6 +9,7 @@ if [[ ! -f .env.local ]]; then
 fi
 
 npm install --omit=dev
+npx playwright install chromium
 
 support="$HOME/Library/Application Support/MarukyuStock"
 plist="$HOME/Library/LaunchAgents/com.nick.marukyu-stock.plist"

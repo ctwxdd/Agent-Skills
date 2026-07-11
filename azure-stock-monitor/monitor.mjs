@@ -1,3 +1,5 @@
+import { chromium } from 'playwright';
+
 const PRODUCTS = [
   { name: 'Yugen', displayName: '又玄 Yugen', url: 'https://www.marukyu-koyamaen.co.jp/english/shop/products/1171020c1' },
   { name: 'Isuzu', displayName: '五十鈴 Isuzu', url: 'https://www.marukyu-koyamaen.co.jp/english/shop/products/1191040c1' },
@@ -34,49 +36,8 @@ function shouldRunNow() {
   return hour >= 8 && hour <= 20;
 }
 
-function htmlToText(html) {
-  return html
-    .replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, '\n')
-    .replace(/<style\b[^>]*>[\s\S]*?<\/style>/gi, '\n')
-    .replace(/<br\s*\/?>/gi, '\n')
-    .replace(/<\/(?:p|div|li|tr|td|th|h[1-6]|section|article|button|a)>/gi, '\n')
-    .replace(/<[^>]+>/g, ' ')
-    .replace(/&nbsp;/g, ' ')
-    .replace(/&amp;/g, '&')
-    .replace(/&#36;/g, '$')
-    .replace(/\s+\n/g, '\n')
-    .replace(/\n\s+/g, '\n')
-    .replace(/[ \t]{2,}/g, ' ')
-    .trim();
-}
-
-function pageTitle(html) {
-  return (html.match(/<title[^>]*>([\s\S]*?)<\/title>/i)?.[1] || '')
-    .replace(/\s+/g, ' ')
-    .trim();
-}
-
-async function fetchHtml(url) {
-  const response = await fetch(url, {
-    headers: {
-      'user-agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126 Safari/537.36',
-      accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-      'accept-language': 'en-US,en;q=0.9,ja;q=0.8',
-      cookie: env('MARUKYU_COOKIE')
-    },
-    redirect: 'follow',
-    signal: AbortSignal.timeout(45000)
-  });
-  const html = await response.text();
-  return { html, statusCode: response.status, observedUrl: response.url };
-}
-
-function parseProduct(input, html, statusCode, observedUrl) {
-  const title = pageTitle(html);
-  const body = htmlToText(html);
-
-  const cloudflareChallenge = (/just a moment/i.test(title) && /cloudflare/i.test(html))
-    || /challenge-platform|__cf_chl_|verify you are human|cf-browser-verification|cf-challenge/i.test(html);
+function parseProduct(input, body, title, statusCode, observedUrl) {
+  const cloudflareChallenge = /just a moment|verify you are human|cloudflare|challenge-platform|__cf_chl_|cf-browser-verification|cf-challenge/i.test(`${title}\n${body}`);
   if (cloudflareChallenge) {
     return {
       name: input.name,
@@ -145,15 +106,27 @@ function parseProduct(input, html, statusCode, observedUrl) {
 async function checkStock() {
   const compact = [];
   for (const product of PRODUCTS) {
-    const { html, statusCode, observedUrl } = await fetchHtml(product.url);
-    compact.push(parseProduct(product, html, statusCode, observedUrl));
+    const browser = await chromium.launch({ headless: env('HEADLESS', '1') !== '0' });
+    const page = await browser.newPage({
+      userAgent: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126 Safari/537.36'
+    });
+
+    try {
+      const response = await page.goto(product.url, { waitUntil: 'domcontentloaded', timeout: 45000 });
+      await page.waitForLoadState('domcontentloaded', { timeout: 10000 }).catch(() => {});
+      await page.waitForTimeout(Number(env('PAGE_SETTLE_MS', '1500')));
+      const body = await page.locator('body').innerText({ timeout: 15000 }).catch(() => '');
+      compact.push(parseProduct(product, body, await page.title(), response?.status() || 0, page.url()));
+    } finally {
+      await browser.close();
+    }
   }
 
   return {
     checkedAt: new Date().toISOString(),
     checkedAtJst: nowInTokyo().isoLike,
     sourceUrl: 'https://www.marukyu-koyamaen.co.jp/english/shop/products/catalog/matcha',
-    mode: 'azure_fetch',
+    mode: 'playwright',
     compact
   };
 }

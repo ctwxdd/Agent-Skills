@@ -1,4 +1,4 @@
-FROM node:20-bookworm-slim
+FROM mcr.microsoft.com/playwright:v1.54.1-noble
 
 WORKDIR /app
 COPY package.json package-lock.json* ./

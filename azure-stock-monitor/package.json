@@ -7,6 +7,7 @@
     "check": "node monitor.mjs"
   },
   "dependencies": {
-    "@azure/communication-email": "1.0.0"
+    "@azure/communication-email": "1.0.0",
+    "playwright": "1.54.1"
   }
 }
