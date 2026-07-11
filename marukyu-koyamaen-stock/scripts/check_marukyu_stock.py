@@ -340,7 +340,7 @@ def main(argv: Iterable[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--url", default=CATALOG_URL, help="Catalog URL to check.")
     parser.add_argument("--html", help="Saved HTML file to parse instead of fetching live.")
-    parser.add_argument("--cookie", help="Optional Cookie header copied from a browser session.")
+    parser.add_argument("--cookie", help="Optional Cookie header for code-based requests.")
     parser.add_argument("--timeout", type=positive_int, default=20)
     parser.add_argument("--max-pages", type=positive_int, default=40)
     parser.add_argument("--delay", type=float, default=0.5, help="Delay between product page fetches.")

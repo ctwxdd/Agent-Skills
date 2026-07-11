@@ -11,39 +11,25 @@ description: Check Marukyu Koyamaen official English shop inventory for matcha p
 python3 scripts/check_marukyu_stock.py
 python3 scripts/check_marukyu_stock.py --format json
 python3 scripts/check_marukyu_stock.py --state /tmp/marukyu-stock-state.json --only-changes
-python3 scripts/append_stock_xlsx.py --input outputs/marukyu-stock/latest-stock.json
-```
-
-Logged-in browser fast path:
-
-```js
-const mod = await import(`${nodeRepl.cwd}/marukyu-koyamaen-stock/scripts/iab_logged_in_stock_check.mjs`);
-await mod.runLoggedInStockCheck({ browser, nodeRepl });
 ```
 
 ## Workflow
 
-1. Run `scripts/check_marukyu_stock.py` first.
-2. If it returns `cloudflare_challenge`, use the logged-in browser fast path.
+1. Run `scripts/check_marukyu_stock.py`.
+2. If it returns `cloudflare_challenge`, report that code-based access is blocked; do not use the in-app browser.
 3. Report timestamp, source URL, mode, and available variants first.
 4. Use only official `marukyu-koyamaen.co.jp` pages unless the user asks for resellers.
 
-## Logged-In Checks
-
-Use `scripts/iab_logged_in_stock_check.mjs` after selecting the browser that contains the user's login. It navigates the matcha catalog and product pages; do not click `Add To Cart`.
-
-Interpret JSON:
+## Output
 
 - Prefer `displayName` in user-facing output; it includes kanji when known, e.g. `又玄 Yugen`.
-- `availableVariants`: size section contains `Add To Cart`.
-- `outOfStockVariants`: size section contains `Out of stock`.
+- `availableVariants`: size section contains `Add To Cart` in code-fetched HTML.
+- `outOfStockVariants`: size section contains `Out of stock` in code-fetched HTML.
 - Each size is parsed only until the next size label; never use page-level `Out of stock` on mixed pages.
 
 ## Scripts
 
-- `check_marukyu_stock.py`: stdlib HTTP checker, Markdown/JSON output, optional state diff, Cloudflare detection.
-- `iab_logged_in_stock_check.mjs`: logged-in browser checker. It navigates pages because the in-app browser page scope may not expose `fetch`.
-- `append_stock_xlsx.py`: append stock-check JSON to `outputs/marukyu-stock/stock-log.jsonl` and rebuild `outputs/marukyu-stock/marukyu-stock-log.xlsx`.
+- `check_marukyu_stock.py`: stdlib HTTP checker, Markdown/JSON output, optional state diff, Cloudflare detection. No Excel writing.
 
 Treat `available_candidate` as "listed/orderable-looking", not checkout-proof, unless a logged-in product page exposes `Add To Cart`.
 

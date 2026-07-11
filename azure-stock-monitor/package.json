@@ -1,0 +1,12 @@
+{
+  "name": "marukyu-stock-monitor",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "check": "node monitor.mjs"
+  },
+  "dependencies": {
+    "@azure/communication-email": "1.0.0"
+  }
+}
