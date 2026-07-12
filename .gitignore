@@ -2,3 +2,4 @@ azure-stock-monitor/.env.local
 azure-stock-monitor/logs/
 azure-stock-monitor/node_modules/
 azure-stock-monitor/package-lock.json
+azure-stock-monitor/browser-profile/

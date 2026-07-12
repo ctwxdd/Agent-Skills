@@ -1,4 +1,6 @@
 import { chromium } from 'playwright';
+import fs from 'node:fs';
+import path from 'node:path';
 
 const PRODUCTS = [
   { name: 'Yugen', displayName: '又玄 Yugen', url: 'https://www.marukyu-koyamaen.co.jp/english/shop/products/1171020c1' },
@@ -36,6 +38,20 @@ function shouldRunNow() {
   return hour >= 8 && hour <= 20;
 }
 
+function profileDir() {
+  return path.resolve(env('BROWSER_PROFILE_DIR', './browser-profile'));
+}
+
+function logsDir() {
+  const dir = path.resolve(env('LOG_DIR', './logs'));
+  fs.mkdirSync(dir, { recursive: true });
+  return dir;
+}
+
+function isHeadless() {
+  return env('HEADLESS', '1') !== '0';
+}
+
 function parseProduct(input, body, title, statusCode, observedUrl) {
   const cloudflareChallenge = /just a moment|verify you are human|cloudflare|challenge-platform|__cf_chl_|cf-browser-verification|cf-challenge/i.test(`${title}\n${body}`);
   if (cloudflareChallenge) {
@@ -50,6 +66,7 @@ function parseProduct(input, body, title, statusCode, observedUrl) {
       observedUrl,
       title,
       statusCode,
+      challengeScreenshot: '',
       loginRequired: false,
       pageOutOfStock: false,
       hasAddToCart: false
@@ -97,29 +114,56 @@ function parseProduct(input, body, title, statusCode, observedUrl) {
     observedUrl,
     title,
     statusCode,
+    challengeScreenshot: '',
     loginRequired: /register and login|login to shop|sign in/i.test(body),
     pageOutOfStock,
     hasAddToCart: /Add To Cart/i.test(body)
   };
 }
 
+async function readProductPage(page, product, response) {
+  await page.waitForLoadState('domcontentloaded', { timeout: 10000 }).catch(() => {});
+  await page.waitForTimeout(Number(env('PAGE_SETTLE_MS', '1500')));
+  const body = await page.locator('body').innerText({ timeout: 15000 }).catch(() => '');
+  return parseProduct(product, body, await page.title(), response?.status() || 0, page.url());
+}
+
+async function checkProduct(product) {
+  const context = await chromium.launchPersistentContext(profileDir(), {
+    headless: isHeadless(),
+    viewport: { width: 1280, height: 900 },
+    locale: 'en-US',
+    timezoneId: JST_TIMEZONE,
+    userAgent: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126 Safari/537.36'
+  });
+  const page = context.pages()[0] || await context.newPage();
+
+  try {
+    let response = await page.goto(product.url, { waitUntil: 'domcontentloaded', timeout: 45000 });
+    let result = await readProductPage(page, product, response);
+    if (result.status === 'cloudflare_challenge') {
+      const stamp = new Date().toISOString().replace(/[:.]/g, '-');
+      const screenshot = path.join(logsDir(), `cloudflare-${product.name}-${stamp}.png`);
+      await page.screenshot({ path: screenshot, fullPage: true }).catch(() => {});
+      result.challengeScreenshot = screenshot;
+
+      if (!isHeadless()) {
+        await page.waitForTimeout(Number(env('MANUAL_SOLVE_MS', '120000')));
+        response = await page.reload({ waitUntil: 'domcontentloaded', timeout: 45000 }).catch(() => null);
+        result = await readProductPage(page, product, response);
+        result.challengeScreenshot = result.status === 'cloudflare_challenge' ? screenshot : '';
+      }
+    }
+    return result;
+  } finally {
+    await context.close();
+  }
+}
+
 async function checkStock() {
   const compact = [];
   for (const product of PRODUCTS) {
-    const browser = await chromium.launch({ headless: env('HEADLESS', '1') !== '0' });
-    const page = await browser.newPage({
-      userAgent: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126 Safari/537.36'
-    });
-
-    try {
-      const response = await page.goto(product.url, { waitUntil: 'domcontentloaded', timeout: 45000 });
-      await page.waitForLoadState('domcontentloaded', { timeout: 10000 }).catch(() => {});
-      await page.waitForTimeout(Number(env('PAGE_SETTLE_MS', '1500')));
-      const body = await page.locator('body').innerText({ timeout: 15000 }).catch(() => '');
-      compact.push(parseProduct(product, body, await page.title(), response?.status() || 0, page.url()));
-    } finally {
-      await browser.close();
-    }
+    compact.push(await checkProduct(product));
   }
 
   return {
@@ -133,11 +177,14 @@ async function checkStock() {
 
 async function sendEmail(payload) {
   const available = payload.compact.filter((item) => item.availableVariants.length);
-  const shouldSend = available.length || env('EMAIL_ALWAYS') === '1';
+  const challenges = payload.compact.filter((item) => item.status === 'cloudflare_challenge');
+  const shouldSend = available.length || challenges.length || env('EMAIL_ALWAYS') === '1';
   if (!shouldSend) return false;
 
   const lines = [
-    available.length
+    challenges.length
+      ? `Marukyu Koyamaen Cloudflare challenge at ${payload.checkedAtJst}`
+      : available.length
       ? `Marukyu Koyamaen stock found at ${payload.checkedAtJst}`
       : `Marukyu Koyamaen stock check at ${payload.checkedAtJst}`,
     '',
@@ -147,11 +194,14 @@ async function sendEmail(payload) {
       ...(item.availableVariants.length ? item.availableVariants.map((variant) => `available: ${variant}`) : []),
       ...(item.outOfStockVariants.length ? item.outOfStockVariants.map((variant) => `out: ${variant}`) : []),
       ...(item.unknownVariants.length ? item.unknownVariants.map((variant) => `unknown: ${variant}`) : []),
+      ...(item.challengeScreenshot ? [`challenge screenshot: ${item.challengeScreenshot}`] : []),
       item.url,
       ''
     ])
   ];
-  const subject = available.length
+  const subject = challenges.length
+    ? `Marukyu action needed: Cloudflare challenge (${challenges.map((item) => item.displayName).join(', ')})`
+    : available.length
     ? `Marukyu stock alert: ${available.map((item) => item.displayName).join(', ')}`
     : 'Marukyu stock check: no stock detected';
   const text = lines.join('\n');
