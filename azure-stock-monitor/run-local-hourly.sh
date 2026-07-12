@@ -13,6 +13,6 @@ if [[ -f .env.local ]]; then
   set +a
 fi
 
-export EMAIL_ALWAYS="${EMAIL_ALWAYS:-1}"
+export EMAIL_ALWAYS="${EMAIL_ALWAYS:-0}"
 
 node monitor.mjs 2>&1 | tee -a logs/local-monitor.log

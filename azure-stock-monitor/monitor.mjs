@@ -206,6 +206,10 @@ async function sendEmail(payload) {
     : 'Marukyu stock check: no stock detected';
   const text = lines.join('\n');
 
+  return sendRawEmail(subject, text);
+}
+
+async function sendRawEmail(subject, text) {
   if (env('ACS_CONNECTION_STRING') && env('ACS_SENDER') && env('EMAIL_TO')) {
     const { EmailClient } = await import('@azure/communication-email');
     const client = new EmailClient(env('ACS_CONNECTION_STRING'));
@@ -217,9 +221,21 @@ async function sendEmail(payload) {
     await poller.pollUntilDone();
     return true;
   }
-
   console.warn('Email requested, but ACS_CONNECTION_STRING, ACS_SENDER, or EMAIL_TO is missing.');
   return false;
+}
+
+async function sendProgramError(error) {
+  const { isoLike } = nowInTokyo();
+  const stack = error?.stack || String(error);
+  return sendRawEmail(
+    'Marukyu monitor error',
+    [
+      `Marukyu stock monitor crashed at ${isoLike}`,
+      '',
+      stack
+    ].join('\n')
+  );
 }
 
 async function main() {
@@ -234,7 +250,10 @@ async function main() {
   console.log(JSON.stringify({ ...payload, emailed }, null, 2));
 }
 
-main().catch((error) => {
+main().catch(async (error) => {
   console.error(error);
+  await sendProgramError(error).catch((emailError) => {
+    console.error('Failed to send error email:', emailError);
+  });
   process.exitCode = 1;
 });

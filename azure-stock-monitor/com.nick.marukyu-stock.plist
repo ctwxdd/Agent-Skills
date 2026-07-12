@@ -10,7 +10,7 @@
     <string>/Users/nick/Documents/Codex/2026-06-26/Agent-Skills/azure-stock-monitor/run-local-hourly.sh</string>
   </array>
   <key>StartInterval</key>
-  <integer>3600</integer>
+  <integer>10800</integer>
   <key>RunAtLoad</key>
   <true/>
   <key>StandardOutPath</key>

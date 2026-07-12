@@ -25,11 +25,10 @@ cd azure-stock-monitor
 ./deploy.sh
 ```
 
-The monitor sends email only when at least one variant is detected with `Add To Cart`.
+The monitor sends email when at least one variant is detected with `Add To Cart`, when Cloudflare challenge is detected, or when the program crashes.
 Set `EMAIL_ALWAYS=1` for a one-off test email even when nothing is available.
-It also sends email when Cloudflare challenge is detected, with a local screenshot path.
 
-## Local hourly monitor
+## Local monitor
 
 Create `azure-stock-monitor/.env.local` from `.env.local.example`, then install the LaunchAgent:
 
@@ -38,7 +37,7 @@ cd azure-stock-monitor
 ./install-local-launchagent.sh
 ```
 
-The installer copies the runtime to `~/Library/Application Support/MarukyuStock` so macOS can run it in the background. The LaunchAgent wakes hourly. `monitor.mjs` skips outside Japan 08:00-20:59. Local logs are written under `~/Library/Application Support/MarukyuStock/logs/`.
+The installer copies the runtime to `~/Library/Application Support/MarukyuStock` so macOS can run it in the background. The LaunchAgent wakes every 3 hours. `monitor.mjs` skips outside Japan 08:00-20:59. Local logs are written under `~/Library/Application Support/MarukyuStock/logs/`.
 
 If Cloudflare blocks the checker, refresh the persistent browser profile manually:
 
