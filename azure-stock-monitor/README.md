@@ -43,7 +43,7 @@ If Cloudflare blocks the checker, refresh the persistent browser profile manuall
 
 ```bash
 cd ~/Library/Application\ Support/MarukyuStock
-HEADLESS=0 FORCE_RUN=1 EMAIL_ALWAYS=1 ./run-local-hourly.sh
+USE_REAL_CHROME=1 FORCE_RUN=1 EMAIL_ALWAYS=1 ./run-local-hourly.sh
 ```
 
-Complete the challenge in the opened browser. The profile is saved under `browser-profile/` and reused by future hourly runs.
+Complete the challenge in the opened Google Chrome window. The profile is saved under `real-chrome-profile/` and reused by future hourly runs.

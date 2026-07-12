@@ -52,6 +52,26 @@ function isHeadless() {
   return env('HEADLESS', '1') !== '0';
 }
 
+function browserChannel() {
+  const configured = env('BROWSER_CHANNEL');
+  if (configured === 'bundled') return '';
+  if (configured) return configured;
+  return process.platform === 'darwin' && fs.existsSync('/Applications/Google Chrome.app') ? 'chrome' : '';
+}
+
+function launchOptions() {
+  const options = {
+    headless: isHeadless(),
+    viewport: { width: 1280, height: 900 },
+    locale: 'en-US',
+    timezoneId: JST_TIMEZONE,
+    userAgent: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126 Safari/537.36'
+  };
+  const channel = browserChannel();
+  if (channel) options.channel = channel;
+  return options;
+}
+
 function parseProduct(input, body, title, statusCode, observedUrl) {
   const cloudflareChallenge = /just a moment|verify you are human|cloudflare|challenge-platform|__cf_chl_|cf-browser-verification|cf-challenge/i.test(`${title}\n${body}`);
   if (cloudflareChallenge) {
@@ -128,42 +148,37 @@ async function readProductPage(page, product, response) {
   return parseProduct(product, body, await page.title(), response?.status() || 0, page.url());
 }
 
-async function checkProduct(product) {
-  const context = await chromium.launchPersistentContext(profileDir(), {
-    headless: isHeadless(),
-    viewport: { width: 1280, height: 900 },
-    locale: 'en-US',
-    timezoneId: JST_TIMEZONE,
-    userAgent: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126 Safari/537.36'
-  });
-  const page = context.pages()[0] || await context.newPage();
+async function checkProduct(page, product) {
+  let response = await page.goto(product.url, { waitUntil: 'domcontentloaded', timeout: 45000 });
+  let result = await readProductPage(page, product, response);
+  if (result.status === 'cloudflare_challenge') {
+    const stamp = new Date().toISOString().replace(/[:.]/g, '-');
+    const screenshot = path.join(logsDir(), `cloudflare-${product.name}-${stamp}.png`);
+    await page.screenshot({ path: screenshot, fullPage: true }).catch(() => {});
+    result.challengeScreenshot = screenshot;
 
-  try {
-    let response = await page.goto(product.url, { waitUntil: 'domcontentloaded', timeout: 45000 });
-    let result = await readProductPage(page, product, response);
-    if (result.status === 'cloudflare_challenge') {
-      const stamp = new Date().toISOString().replace(/[:.]/g, '-');
-      const screenshot = path.join(logsDir(), `cloudflare-${product.name}-${stamp}.png`);
-      await page.screenshot({ path: screenshot, fullPage: true }).catch(() => {});
-      result.challengeScreenshot = screenshot;
-
-      if (!isHeadless()) {
-        await page.waitForTimeout(Number(env('MANUAL_SOLVE_MS', '120000')));
-        response = await page.reload({ waitUntil: 'domcontentloaded', timeout: 45000 }).catch(() => null);
-        result = await readProductPage(page, product, response);
-        result.challengeScreenshot = result.status === 'cloudflare_challenge' ? screenshot : '';
-      }
+    if (!isHeadless()) {
+      await page.waitForTimeout(Number(env('MANUAL_SOLVE_MS', '120000')));
+      response = await page.reload({ waitUntil: 'domcontentloaded', timeout: 45000 }).catch(() => null);
+      result = await readProductPage(page, product, response);
+      result.challengeScreenshot = result.status === 'cloudflare_challenge' ? screenshot : '';
     }
-    return result;
-  } finally {
-    await context.close();
   }
+  return result;
 }
 
 async function checkStock() {
+  if (env('BROWSER_CDP_URL')) return checkStockViaCdp();
+
   const compact = [];
-  for (const product of PRODUCTS) {
-    compact.push(await checkProduct(product));
+  const context = await chromium.launchPersistentContext(profileDir(), launchOptions());
+  const page = context.pages()[0] || await context.newPage();
+  try {
+    for (const product of PRODUCTS) {
+      compact.push(await checkProduct(page, product));
+    }
+  } finally {
+    await context.close();
   }
 
   return {
@@ -171,6 +186,29 @@ async function checkStock() {
     checkedAtJst: nowInTokyo().isoLike,
     sourceUrl: 'https://www.marukyu-koyamaen.co.jp/english/shop/products/catalog/matcha',
     mode: 'playwright',
+    compact
+  };
+}
+
+async function checkStockViaCdp() {
+  const compact = [];
+  const browser = await chromium.connectOverCDP(env('BROWSER_CDP_URL'));
+  const context = browser.contexts()[0] || await browser.newContext();
+  const page = context.pages()[0] || await context.newPage();
+
+  try {
+    for (const product of PRODUCTS) {
+      compact.push(await checkProduct(page, product));
+    }
+  } finally {
+    await browser.close().catch(() => {});
+  }
+
+  return {
+    checkedAt: new Date().toISOString(),
+    checkedAtJst: nowInTokyo().isoLike,
+    sourceUrl: 'https://www.marukyu-koyamaen.co.jp/english/shop/products/catalog/matcha',
+    mode: 'chrome_cdp',
     compact
   };
 }
